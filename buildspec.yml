@@ -1,0 +1,46 @@
+version: 0.2
+
+env: 
+  variables:
+    # AMZLINUX_CONTAINER_REVISION: "dbfdd38"
+    IMAGE_TAG: "latest"
+    PACKER_VERSION: "1.4.1"
+    ANSIBLE_VERSION: "2.8.0"
+   
+
+phases:
+  install:
+    runtime-versions:
+      docker: 18
+    commands:
+      - echo "INSTALL"
+  pre_build:
+    commands:
+      - uname -a
+      - cat /etc/lsb-release
+      - env | sort
+      - echo Logging in to Amazon ECR...
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      - ls -la 
+      - pwd
+      #- bash -c 'echo ${ECR_REPO_URL}:${CODEBUILD_RESOLVED_SOURCE_VERSION:0:7}'
+      #  bash supported substring expansion like ${parameter:offset:length}. Dash don't have this pattern. Useing awk replace such expasions .
+      - |
+        docker build \
+        --build-arg PACKER_VERSION=${PACKER_VERSION} \
+        --build-arg ANSIBLE_VERSION=${ANSIBLE_VERSION} \
+        -t ${ECR_REPO_URL}:${IMAGE_TAG} \
+        -t ${ECR_REPO_URL}:$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | \
+        awk '{string=substr($0, 1, 7); print string;}') .
+      - docker images
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker image...
+      - $(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)
+      - docker push ${ECR_REPO_URL}:${IMAGE_TAG}
+      - docker push ${ECR_REPO_URL}:$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | awk '{string=substr($0, 1, 7); print string;}')
+      - echo finished
